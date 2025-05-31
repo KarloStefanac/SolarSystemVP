@@ -1,143 +1,187 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Planet Data</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+  />
   <style>
-    .planet-buttons, .column-buttons {
-      display: flex;
-      margin: 10px 0;
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-image: url('https://www.solarsystemscope.com/textures/download/2k_stars_milky_way.jpg');
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+      background-position: center;
+      color: #f0f0f0;
     }
+
+    h1 {
+      margin: 20px 0;
+      color: #ffffff;
+      text-shadow: 0px 0px 5px #000000;
+    }
+
     .planet-buttons {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin: 20px 0;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 20px 0;
     }
+
     .column-buttons {
+      display: flex;
       flex-direction: column;
       margin-right: 20px;
     }
+
     button {
-      margin: 2px;
-      padding: 5px 10px;
       cursor: pointer;
     }
-    .chart {
-      margin-top: 20px;
+
+    svg {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      margin: 10px;
+    }
+
+    .chart-title {
+      fill: white;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
-    <h1 style="text-align: center;">Planet Data Visualization</h1>
-  <div class="planet-buttons" id="planetButtons"></div>
-  <div style="display: flex;">
-    <div class="column-buttons" id="columnButtons"></div>
-    <svg width="400" height="400" id="lineChart" class="chart"></svg>
-    <svg width="400" height="400" id="barChart" class="chart"></svg>
-</div>
-<div style="display: flex; justify-content: center; margin-top: 30px;">
-    <svg id="pieChart" width="300" height="300"></svg>
+  <div class="container text-center">
+    <h1>Planet Data Visualization</h1>
+    <div class="planet-buttons" id="planetButtons"></div>
+    <div class="d-flex justify-content-center">
+      <div class="column-buttons" id="columnButtons"></div>
+      <svg width="400" height="400" id="lineChart"></svg>
+      <svg width="400" height="400" id="barChart"></svg>
+    </div>
+    <div class="d-flex justify-content-center mt-4">
+      <svg id="pieChart" width="300" height="300"></svg>
+    </div>
   </div>
 
   <script>
-    d3.csv("planets.csv").then(data => {
-      const planetNames = data.map(d => d.NAME);
-      const uniquePlanets = Array.from(new Set(planetNames));
+    let selectedPlanets = new Set();
+    let currentColumn = "MASS_10_EXP_24_KG";
 
+    d3.csv("planets.csv").then(data => {
+      const planetNames = Array.from(new Set(data.map(d => d.NAME)));
       const columns = Object.keys(data[0]).slice(3, 13);
 
       const planetButtons = d3.select("#planetButtons");
-      uniquePlanets.forEach(name => {
+      planetNames.forEach(name => {
         planetButtons.append("button")
+          .attr("class", "btn btn-info btn-sm")
           .text(name)
-          .on("click", () => {
-            drawLineChart(data, "MASS_10_EXP_24_KG");
+          .on("click", function () {
+            if (selectedPlanets.has(name)) {
+              selectedPlanets.delete(name);
+              d3.select(this).classed("btn-info", false).classed("btn-outline-info", true);
+            } else {
+              selectedPlanets.add(name);
+              d3.select(this).classed("btn-outline-info", false).classed("btn-info", true);
+            }
+            updateCharts(data);
           });
       });
 
       const columnButtons = d3.select("#columnButtons");
       columns.forEach(col => {
         columnButtons.append("button")
+          .attr("class", "btn btn-light btn-sm mb-1")
           .text(col)
           .on("click", () => {
-            drawLineChart(data, col);
+            currentColumn = col;
+            updateCharts(data);
           });
       });
 
-      // Initial chart
-      drawLineChart(data, "MASS_10_EXP_24_KG");
-      drawBarChart(data, "NAME");
-      drawPieChart(data, "HAS_RING_SYSTEM");
+      // Default: all selected
+      planetNames.forEach(p => selectedPlanets.add(p));
+      updateCharts(data);
     });
 
+    function updateCharts(data) {
+      const filtered = data.filter(d => selectedPlanets.has(d.NAME));
+      drawLineChart(filtered, currentColumn);
+      drawBarChart(filtered);
+      drawPieChart(filtered);
+    }
+
     function drawLineChart(data, column) {
-        const svg = d3.select("#lineChart");
-        svg.selectAll("*").remove();
+      const svg = d3.select("#lineChart");
+      svg.selectAll("*").remove();
 
-        const width = +svg.attr("width") - 60;
-        const height = +svg.attr("height") - 60;
+      const width = +svg.attr("width") - 60;
+      const height = +svg.attr("height") - 60;
+      const g = svg.append("g").attr("transform", "translate(40,20)");
 
-        const g = svg.append("g").attr("transform", "translate(40,20)");
+      const filteredData = data.map(d => ({
+        name: d.NAME,
+        value: +d[column]
+      })).filter(d => !isNaN(d.value));
 
-        // Filter valid data and keep name-value pairs
-        const filteredData = data
-        .map(d => ({
-            name: d.NAME,
-            value: +d[column]
-        }))
-        .filter(d => d.name && !isNaN(d.value));
-
-        const xScale = d3.scalePoint()
+      const xScale = d3.scalePoint()
         .domain(filteredData.map(d => d.name))
         .range([0, width])
         .padding(0.5);
 
-        const yScale = d3.scaleLinear()
+      const yScale = d3.scaleLinear()
         .domain([0, d3.max(filteredData, d => d.value)])
         .range([height, 0]);
 
-        const line = d3.line()
+      const line = d3.line()
         .x(d => xScale(d.name))
         .y(d => yScale(d.value));
 
-        g.append("path")
+      g.append("path")
         .datum(filteredData)
         .attr("fill", "none")
-        .attr("stroke", "steelblue")
+        .attr("stroke", "cyan")
         .attr("stroke-width", 2)
         .attr("d", line);
 
-        g.append("g")
+      g.append("g")
         .attr("transform", `translate(0,${height})`)
         .call(d3.axisBottom(xScale))
         .selectAll("text")
         .attr("transform", "rotate(-45)")
-        .style("text-anchor", "end");
+        .style("text-anchor", "end")
+        .style("fill", "white");
 
-        g.append("g")
-        .call(d3.axisLeft(yScale));
+      g.append("g")
+        .call(d3.axisLeft(yScale).ticks(5))
+        .selectAll("text")
+        .style("fill", "white");
 
-        svg.append("text")
+      svg.append("text")
         .attr("x", width / 2 + 40)
-        .attr("y", 10)
+        .attr("y", 15)
         .attr("text-anchor", "middle")
-        .style("font-size", "14px")
+        .attr("class", "chart-title")
         .text(`Line Chart for ${column}`);
-}
+    }
 
-    function drawBarChart(data, nameColumn) {
+    function drawBarChart(data) {
       const svg = d3.select("#barChart");
       svg.selectAll("*").remove();
 
       const width = +svg.attr("width") - 60;
       const height = +svg.attr("height") - 60;
-
       const g = svg.append("g").attr("transform", "translate(40,20)");
 
-      const planets = data.map(d => d[nameColumn]);
+      const planets = data.map(d => d.NAME);
       const moonCounts = data.map(d => +d.NUMBER_OF_MOONS || 0);
 
       const xScale = d3.scaleBand()
@@ -161,72 +205,71 @@
 
       g.append("g")
         .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(xScale).tickFormat((d, i) => planets[i]).tickSize(0))
+        .call(d3.axisBottom(xScale))
         .selectAll("text")
         .attr("transform", "rotate(-45)")
-        .style("text-anchor", "end");
+        .style("text-anchor", "end")
+        .style("fill", "white");
 
       g.append("g")
-        .call(d3.axisLeft(yScale));
+        .call(d3.axisLeft(yScale))
+        .selectAll("text")
+        .style("fill", "white");
 
       svg.append("text")
         .attr("x", width / 2 + 40)
-        .attr("y", 10)
+        .attr("y", 15)
         .attr("text-anchor", "middle")
-        .style("font-size", "16px")
+        .attr("class", "chart-title")
         .text("Number of Moons by Planet");
     }
 
-    function drawPieChart(data, column) {
-        const svg = d3.select("#pieChart");
-        svg.selectAll("*").remove();
+    function drawPieChart(data) {
+      const svg = d3.select("#pieChart");
+      svg.selectAll("*").remove();
 
-        const width = +svg.attr("width");
-        const height = +svg.attr("height");
-        const radius = Math.min(width, height) / 2;
+      const width = +svg.attr("width");
+      const height = +svg.attr("height");
+      const radius = Math.min(width, height) / 2;
 
-        const g = svg.append("g")
+      const g = svg.append("g")
         .attr("transform", `translate(${width / 2},${height / 2})`);
 
-        const ringCounts = d3.rollup(
+      const ringCounts = d3.rollup(
         data,
         v => v.length,
-        d => d[column] === "Y" ? "Has Rings" : "No Rings"
-        );
+        d => d.HAS_RING_SYSTEM === "Y" ? "Has Rings" : "No Rings"
+      );
 
-        const pie = d3.pie()
-        .value(d => d[1]);
+      const pie = d3.pie().value(d => d[1]);
+      const arc = d3.arc().innerRadius(0).outerRadius(radius - 10);
 
-        const arc = d3.arc()
-        .innerRadius(0)
-        .outerRadius(radius - 10);
-
-        const color = d3.scaleOrdinal()
+      const color = d3.scaleOrdinal()
         .domain(["Has Rings", "No Rings"])
-        .range(["#1f77b4", "#ff7f0e"]);
+        .range(["#00c2ff", "#ffaa00"]);
 
-        const arcs = g.selectAll("arc")
+      const arcs = g.selectAll("arc")
         .data(pie(Array.from(ringCounts.entries())))
-        .enter()
-        .append("g");
+        .enter().append("g");
 
-        arcs.append("path")
+      arcs.append("path")
         .attr("d", arc)
         .attr("fill", d => color(d.data[0]));
 
-        arcs.append("text")
+      arcs.append("text")
         .attr("transform", d => `translate(${arc.centroid(d)})`)
         .attr("text-anchor", "middle")
         .style("font-size", "12px")
+        .style("fill", "white")
         .text(d => `${d.data[0]} (${d.data[1]})`);
 
-        svg.append("text")
+      svg.append("text")
         .attr("x", width / 2)
-        .attr("y", 10)
+        .attr("y", 15)
         .attr("text-anchor", "middle")
-        .style("font-size", "14px")
+        .attr("class", "chart-title")
         .text("Ring System Distribution");
-        }
+    }
   </script>
 </body>
 </html>
