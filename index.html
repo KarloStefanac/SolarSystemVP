@@ -28,27 +28,42 @@
 
     .planet-buttons {
       display: flex;
-      justify-content: center;
       flex-wrap: wrap;
+      justify-content: center;
       gap: 10px;
-      margin: 20px 0;
+      margin: 20px auto;
+    }
+
+    .main-layout {
+      display: flex;
+      padding: 20px;
+      gap: 20px;
     }
 
     .column-buttons {
       display: flex;
       flex-direction: column;
-      margin-right: 20px;
+      gap: 10px;
+      max-width: 220px;
     }
 
-    button {
-      cursor: pointer;
+    .chart-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      flex-grow: 1;
+      justify-content: center;
     }
 
-    svg {
+    .chart-box {
       background-color: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 8px;
-      margin: 10px;
+      padding: 10px;
+    }
+
+    svg {
+      display: block;
     }
 
     .chart-title {
@@ -61,23 +76,51 @@
   <div class="container text-center">
     <h1>Planet Data Visualization</h1>
     <div class="planet-buttons" id="planetButtons"></div>
-    <div class="d-flex justify-content-center">
-      <div class="column-buttons" id="columnButtons"></div>
-      <svg width="400" height="400" id="lineChart"></svg>
-      <svg width="400" height="400" id="barChart"></svg>
-    </div>
-    <div class="d-flex justify-content-center mt-4">
-      <svg id="pieChart" width="300" height="300"></svg>
-    </div>
+  </div>
+
+  <div class="main-layout">
+    <div class="column-buttons" id="columnButtons"></div>
+    <div class="chart-container" id="chartContainer"></div>
   </div>
 
   <script>
     let selectedPlanets = new Set();
-    let currentColumn = "MASS_10_EXP_24_KG";
+    let selectedColumns = new Set();
+
+    const barChartColumns = [
+      "NUMBER_OF_MOONS",
+      "LENGTH_OF_DAY_HRS",
+      "MEAN_TEMPERATURE_C"
+    ];
+
+    const allColumns = [
+      "MASS_10_EXP_24_KG",
+      "VOLUME_10_EXP_10_KM_EXP_3",
+      "DIAMETER_KM",
+      "NUMBER_OF_MOONS",
+      "HAS_RING_SYSTEM",
+      "LENGTH_OF_DAY_HRS",
+      "DISTANCE_FROM_SUN_10_EXP_6_KM",
+      "GRAVITY_M_PER_S_EXP_2",
+      "MEAN_TEMPERATURE_C"
+    ];
+
+    const columnNameMap = {
+        "MASS_10_EXP_24_KG": "Mass (10²⁴ kg)",
+        "VOLUME_10_EXP_10_KM_EXP_3": "Volume (10¹⁰ km³)",
+        "DIAMETER_KM": "Diameter (km)",
+        "NUMBER_OF_MOONS": "Number of Moons",
+        "HAS_RING_SYSTEM": "Ring System",
+        "LENGTH_OF_DAY_HRS": "Length of Day (hrs)",
+        "DISTANCE_FROM_SUN_10_EXP_6_KM": "Distance from Sun (10⁶ km)",
+        "GRAVITY_M_PER_S_EXP_2": "Gravity (m/s²)",
+        "MEAN_TEMPERATURE_C": "Mean Temperature (°C)"
+    };
+
+    const lineChartColumns = allColumns.filter(col => !barChartColumns.includes(col) && col !== "HAS_RING_SYSTEM");
 
     d3.csv("planets.csv").then(data => {
       const planetNames = Array.from(new Set(data.map(d => d.NAME)));
-      const columns = Object.keys(data[0]).slice(3, 13);
 
       const planetButtons = d3.select("#planetButtons");
       planetNames.forEach(name => {
@@ -97,179 +140,292 @@
       });
 
       const columnButtons = d3.select("#columnButtons");
-      columns.forEach(col => {
+      allColumns.forEach(col => {
         columnButtons.append("button")
-          .attr("class", "btn btn-light btn-sm mb-1")
-          .text(col)
-          .on("click", () => {
-            currentColumn = col;
+          .attr("class", "btn btn-outline-warning btn-sm")
+          .text(columnNameMap[col] || col)
+          .on("click", function () {
+            if (selectedColumns.has(col)) {
+              selectedColumns.delete(col);
+              d3.select(this).classed("btn-warning", false).classed("btn-outline-warning", true);
+            } else {
+              selectedColumns.add(col);
+              d3.select(this).classed("btn-outline-warning", false).classed("btn-warning", true);
+            }
             updateCharts(data);
           });
       });
 
-      // Default: all selected
+      // Default selection
       planetNames.forEach(p => selectedPlanets.add(p));
       updateCharts(data);
     });
 
     function updateCharts(data) {
       const filtered = data.filter(d => selectedPlanets.has(d.NAME));
-      drawLineChart(filtered, currentColumn);
-      drawBarChart(filtered);
-      drawPieChart(filtered);
+      const chartContainer = d3.select("#chartContainer");
+      chartContainer.selectAll("*").remove();
+
+      selectedColumns.forEach(column => {
+        const chartDiv = chartContainer.append("div").attr("class", "chart-box");
+        const svg = chartDiv.append("svg")
+          .attr("width", 400)
+          .attr("height", 300);
+
+        if (column === "HAS_RING_SYSTEM") {
+          drawPieChart(svg, filtered, column);
+        } else if (barChartColumns.includes(column)) {
+          drawBarChart(svg, filtered, column);
+        } else {
+          drawLineChart(svg, filtered, column);
+        }
+      });
     }
 
-    function drawLineChart(data, column) {
-      const svg = d3.select("#lineChart");
-      svg.selectAll("*").remove();
+function drawLineChart(svg, data, column) {
+  svg.selectAll("*").remove();
+  const width = +svg.attr("width") - 60;
+  const height = +svg.attr("height") - 60;
+  const g = svg.append("g").attr("transform", "translate(40,20)");
 
-      const width = +svg.attr("width") - 60;
-      const height = +svg.attr("height") - 60;
-      const g = svg.append("g").attr("transform", "translate(40,20)");
+  const filteredData = data.map(d => ({
+    name: d.NAME,
+    value: +d[column]
+  })).filter(d => !isNaN(d.value));
 
-      const filteredData = data.map(d => ({
-        name: d.NAME,
-        value: +d[column]
-      })).filter(d => !isNaN(d.value));
+  const xScale = d3.scalePoint()
+    .domain(filteredData.map(d => d.name))
+    .range([0, width])
+    .padding(0.5);
 
-      const xScale = d3.scalePoint()
-        .domain(filteredData.map(d => d.name))
-        .range([0, width])
-        .padding(0.5);
+  const yScale = d3.scaleLinear()
+    .domain([0, d3.max(filteredData, d => d.value)])
+    .range([height, 0]);
 
-      const yScale = d3.scaleLinear()
-        .domain([0, d3.max(filteredData, d => d.value)])
-        .range([height, 0]);
+  const line = d3.line()
+    .x(d => xScale(d.name))
+    .y(d => yScale(d.value))
+    .curve(d3.curveMonotoneX);
 
-      const line = d3.line()
-        .x(d => xScale(d.name))
-        .y(d => yScale(d.value));
+  // Line path with transition
+  g.append("path")
+    .datum(filteredData)
+    .attr("fill", "none")
+    .attr("stroke", "#4fc3f7")
+    .attr("stroke-width", 2)
+    .attr("d", line)
+    .attr("stroke-dasharray", function () {
+      const length = this.getTotalLength();
+      return `${length} ${length}`;
+    })
+    .attr("stroke-dashoffset", function () {
+      return this.getTotalLength();
+    })
+    .transition()
+    .duration(1000)
+    .attr("stroke-dashoffset", 0);
 
-      g.append("path")
-        .datum(filteredData)
-        .attr("fill", "none")
-        .attr("stroke", "cyan")
-        .attr("stroke-width", 2)
-        .attr("d", line);
+  // Circles with hover interaction
+  const tooltip = d3.select("#tooltip");
+  g.selectAll("circle")
+    .data(filteredData)
+    .enter()
+    .append("circle")
+    .attr("cx", d => xScale(d.name))
+    .attr("cy", d => yScale(d.value))
+    .attr("r", 5)
+    .attr("fill", "#81d4fa")
+    .on("mouseover", (event, d) => {
+      tooltip.style("display", "block")
+        .html(`<strong>${d.name}</strong><br>${column}: ${d.value}`)
+        .style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 28}px`);
+    })
+    .on("mousemove", event => {
+      tooltip.style("left", `${event.pageX + 10}px`)
+             .style("top", `${event.pageY - 28}px`);
+    })
+    .on("mouseout", () => tooltip.style("display", "none"));
 
-      g.append("g")
-        .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll("text")
-        .attr("transform", "rotate(-45)")
-        .style("text-anchor", "end")
-        .style("fill", "white");
+  g.append("g")
+    .attr("transform", `translate(0,${height})`)
+    .call(d3.axisBottom(xScale).tickSize(0))
+    .selectAll("text")
+    .attr("transform", "rotate(-45)")
+    .style("text-anchor", "end")
+    .style("fill", "white");
 
-      g.append("g")
-        .call(d3.axisLeft(yScale).ticks(5))
-        .selectAll("text")
-        .style("fill", "white");
+  g.append("g").call(d3.axisLeft(yScale))
+    .selectAll("text").style("fill", "white");
+}
 
-      svg.append("text")
-        .attr("x", width / 2 + 40)
-        .attr("y", 15)
-        .attr("text-anchor", "middle")
-        .attr("class", "chart-title")
-        .text(`Line Chart for ${column}`);
-    }
+function drawBarChart(svg, data, column) {
+  svg.selectAll("*").remove();
+  const width = +svg.attr("width") - 60;
+  const height = +svg.attr("height") - 60;
+  const g = svg.append("g").attr("transform", "translate(40,20)");
 
-    function drawBarChart(data) {
-      const svg = d3.select("#barChart");
-      svg.selectAll("*").remove();
+  const filteredData = data.map(d => ({
+    name: d.NAME,
+    value: +d[column]
+  })).filter(d => !isNaN(d.value));
 
-      const width = +svg.attr("width") - 60;
-      const height = +svg.attr("height") - 60;
-      const g = svg.append("g").attr("transform", "translate(40,20)");
+  const xScale = d3.scaleBand()
+    .domain(filteredData.map(d => d.name))
+    .range([0, width])
+    .padding(0.1);
 
-      const planets = data.map(d => d.NAME);
-      const moonCounts = data.map(d => +d.NUMBER_OF_MOONS || 0);
+  const yMin = d3.min(filteredData, d => d.value);
+  const yMax = d3.max(filteredData, d => d.value);
 
-      const xScale = d3.scaleBand()
-        .domain(planets)
-        .range([0, width])
-        .padding(0.1);
+  const yScale = d3.scaleLinear()
+    .domain([Math.min(0, yMin), Math.max(0, yMax)])
+    .range([height, 0]);
 
-      const yScale = d3.scaleLinear()
-        .domain([0, d3.max(moonCounts)])
-        .range([height, 0]);
+  const tooltip = d3.select("#tooltip");
 
-      g.selectAll("rect")
-        .data(moonCounts)
-        .enter()
-        .append("rect")
-        .attr("x", (d, i) => xScale(planets[i]))
-        .attr("y", d => yScale(d))
-        .attr("width", xScale.bandwidth())
-        .attr("height", d => height - yScale(d))
-        .attr("fill", "orange");
+  g.selectAll("rect")
+    .data(filteredData)
+    .enter()
+    .append("rect")
+  .attr("x", d => xScale(d.name))
+  .attr("y", d => yScale(d.value))
+  .attr("width", xScale.bandwidth())
+  .attr("height", d => height - yScale(d.value))
+    .attr("fill", "orange")
+    .style("transform-origin", d => `${xScale(d.name) + xScale.bandwidth() / 2}px ${yScale(d.value)}px`)
+    .style("transition", "transform 0.2s ease")
+    .on("mouseover", function (event, d) {
+      d3.select(this).style("transform", "scale(1.05)");
+      tooltip.style("display", "block")
+        .html(`<strong>${d.name}</strong><br>${column}: ${d.value}`)
+        .style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 28}px`);
+    })
+    .on("mousemove", event => {
+        tooltip.style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 28}px`);
+    })
+    .on("mouseout", function () {
+      d3.select(this).style("transform", "scale(1)");
+      tooltip.style("display", "none");
+    })
+    .transition()
+    .duration(800)
+    .attr("y", d => d.value >= 0 ? yScale(d.value) : yScale(0))
+    .attr("height", d => Math.abs(yScale(d.value) - yScale(0)));
 
-      g.append("g")
-        .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll("text")
-        .attr("transform", "rotate(-45)")
-        .style("text-anchor", "end")
-        .style("fill", "white");
+  g.append("g")
+    .attr("transform", `translate(0,${yScale(0)})`)
+    .call(d3.axisBottom(xScale))
+    .selectAll("text")
+    .attr("transform", "rotate(-45)")
+    .style("text-anchor", "end")
+    .style("fill", "white");
 
-      g.append("g")
-        .call(d3.axisLeft(yScale))
-        .selectAll("text")
-        .style("fill", "white");
+  g.append("g").call(d3.axisLeft(yScale))
+    .selectAll("text").style("fill", "white");
+}
 
-      svg.append("text")
-        .attr("x", width / 2 + 40)
-        .attr("y", 15)
-        .attr("text-anchor", "middle")
-        .attr("class", "chart-title")
-        .text("Number of Moons by Planet");
-    }
+function drawPieChart(svg, data, column) {
+  svg.selectAll("*").remove();
+  const width = +svg.attr("width");
+  const height = +svg.attr("height");
+  const radius = Math.min(width, height) / 2;
 
-    function drawPieChart(data) {
-      const svg = d3.select("#pieChart");
-      svg.selectAll("*").remove();
+  const g = svg.append("g")
+    .attr("transform", `translate(${width / 2}, ${height / 2})`);
 
-      const width = +svg.attr("width");
-      const height = +svg.attr("height");
-      const radius = Math.min(width, height) / 2;
+  // Group data and collect planet names
+  const ringGroups = d3.rollup(
+    data,
+    v => ({
+      count: v.length,
+      names: v.map(d => d.NAME).join(", ")
+    }),
+    d => d[column] === "Y" ? "Has Rings" : "No Rings"
+  );
 
-      const g = svg.append("g")
-        .attr("transform", `translate(${width / 2},${height / 2})`);
+  const pieData = Array.from(ringGroups.entries()).map(([label, { count, names }]) => ({
+    label,
+    count,
+    names
+  }));
 
-      const ringCounts = d3.rollup(
-        data,
-        v => v.length,
-        d => d.HAS_RING_SYSTEM === "Y" ? "Has Rings" : "No Rings"
-      );
+  const pie = d3.pie().value(d => d.count);
+  const arc = d3.arc().innerRadius(0).outerRadius(radius - 10);
 
-      const pie = d3.pie().value(d => d[1]);
-      const arc = d3.arc().innerRadius(0).outerRadius(radius - 10);
+  const color = d3.scaleOrdinal()
+    .domain(["Has Rings", "No Rings"])
+    .range(["#1f77b4", "#ff7f0e"]);
 
-      const color = d3.scaleOrdinal()
-        .domain(["Has Rings", "No Rings"])
-        .range(["#00c2ff", "#ffaa00"]);
+  const tooltip = d3.select("#tooltip");
 
-      const arcs = g.selectAll("arc")
-        .data(pie(Array.from(ringCounts.entries())))
-        .enter().append("g");
+  const arcs = g.selectAll("path")
+    .data(pie(pieData))
+    .enter()
+    .append("g");
 
-      arcs.append("path")
-        .attr("d", arc)
-        .attr("fill", d => color(d.data[0]));
+  // Draw pie slices
+  arcs.append("path")
+    .attr("fill", d => color(d.data.label))
+    .attr("d", arc)
+    .style("transition", "transform 0.2s ease")
+    .each(function (d) { this._current = d; })
+    .on("mouseover", function (event, d) {
+      d3.select(this)
+        .transition()
+        .duration(200)
+        .attr("transform", function (d) {
+          const [x, y] = arc.centroid(d);
+          return `translate(${x * 0.1},${y * 0.1})`;
+        });
 
-      arcs.append("text")
-        .attr("transform", d => `translate(${arc.centroid(d)})`)
-        .attr("text-anchor", "middle")
-        .style("font-size", "12px")
-        .style("fill", "white")
-        .text(d => `${d.data[0]} (${d.data[1]})`);
+      tooltip.style("display", "block")
+        .html(`<strong>${d.data.label}</strong><br>${d.data.names}`)
+        .style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 28}px`);
+    })
+    .on("mousemove", event => {
+      tooltip.style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 28}px`);
+    })
+    .on("mouseout", function () {
+      d3.select(this)
+        .transition()
+        .duration(200)
+        .attr("transform", "translate(0,0)");
+      tooltip.style("display", "none");
+    });
 
-      svg.append("text")
-        .attr("x", width / 2)
-        .attr("y", 15)
-        .attr("text-anchor", "middle")
-        .attr("class", "chart-title")
-        .text("Ring System Distribution");
-    }
+  // Add labels inside slices
+  arcs.append("text")
+    .attr("transform", d => `translate(${arc.centroid(d)})`)
+    .attr("text-anchor", "middle")
+    .style("font-size", "12px")
+    .style("fill", "#fff")
+    .text(d => `${d.data.label} (${d.data.count})`);
+
+  // Chart title
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", 15)
+    .attr("text-anchor", "middle")
+    .attr("class", "chart-title")
+    .text("Ring System Distribution");
+}
+
   </script>
+  <div id="tooltip" style="
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+"></div>
 </body>
 </html>
