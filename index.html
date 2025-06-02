@@ -257,6 +257,13 @@ function drawLineChart(svg, data, column) {
 
   g.append("g").call(d3.axisLeft(yScale))
     .selectAll("text").style("fill", "white");
+
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", 15)
+    .attr("text-anchor", "middle")
+    .attr("class", "chart-title")
+    .text(columnNameMap[column] || column);
 }
 
 function drawBarChart(svg, data, column) {
@@ -284,41 +291,41 @@ function drawBarChart(svg, data, column) {
 
   const tooltip = d3.select("#tooltip");
 
-g.selectAll("rect")
-  .data(filteredData)
-  .enter()
-  .append("rect")
-  .attr("x", d => xScale(d.name))
-  .attr("y", yScale(0)) // Start from bottom
-  .attr("width", xScale.bandwidth())
-  .attr("height", 0) // Initial height is 0 for animation
-  .attr("fill", "orange")
-  .style("transform-origin", d => `${xScale(d.name) + xScale.bandwidth() / 2}px ${yScale(d.value)}px`)
-  .style("transition", "transform 0.2s ease")
-  .on("mouseover", function (event, d) {
-    d3.select(this)
-      .style("transform", "scale(1.05)");
+  const bars = g.selectAll("rect")
+    .data(filteredData)
+    .enter()
+    .append("rect")
+    .attr("x", d => xScale(d.name))
+    .attr("y", yScale(0)) // Start from baseline
+    .attr("width", xScale.bandwidth())
+    .attr("height", 0) // Start at height 0 for animation
+    .attr("fill", "orange")
+    .style("transform-origin", d => `${xScale(d.name) + xScale.bandwidth() / 2}px ${yScale(d.value)}px`)
+    .style("transition", "transform 0.2s ease")
+    .on("mouseover", function (event, d) {
+      d3.select(this).style("transform", "scale(1.05)");
 
-    tooltip.style("display", "block")
-      .html(`<strong>${d.name}</strong><br>${column}: ${d.value}`)
-      .style("left", `${event.pageX + 10}px`)
-      .style("top", `${event.pageY - 28}px`);
-  })
-  .on("mousemove", event => {
-    tooltip.style("left", `${event.pageX + 10}px`)
-      .style("top", `${event.pageY - 28}px`);
-  })
-  .on("mouseout", function () {
-    d3.select(this)
-      .style("transform", "scale(1)");
-    tooltip.style("display", "none");
-  })
-  .transition()
-  .duration(800)
-  .attr("y", d => yScale(d.value))
-  .attr("height", d => height - yScale(d.value));
+      tooltip.style("display", "block")
+        .html(`<strong>${d.name}</strong><br>${column}: ${d.value}`)
+        .style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 28}px`);
+    })
+    .on("mousemove", event => {
+      tooltip.style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 28}px`);
+    })
+    .on("mouseout", function () {
+      d3.select(this).style("transform", "scale(1)");
+      tooltip.style("display", "none");
+    });
 
+  // Animate the bars correctly depending on value sign
+  bars.transition()
+    .duration(800)
+    .attr("y", d => d.value >= 0 ? yScale(d.value) : yScale(0))
+    .attr("height", d => Math.abs(yScale(d.value) - yScale(0)));
 
+  // X axis
   g.append("g")
     .attr("transform", `translate(0,${yScale(0)})`)
     .call(d3.axisBottom(xScale))
@@ -327,9 +334,21 @@ g.selectAll("rect")
     .style("text-anchor", "end")
     .style("fill", "white");
 
-  g.append("g").call(d3.axisLeft(yScale))
-    .selectAll("text").style("fill", "white");
+  // Y axis
+  g.append("g")
+    .call(d3.axisLeft(yScale))
+    .selectAll("text")
+    .style("fill", "white");
+
+  // Title
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", 15)
+    .attr("text-anchor", "middle")
+    .attr("class", "chart-title")
+    .text(columnNameMap[column] || column);
 }
+
 
 function drawPieChart(svg, data, column) {
   svg.selectAll("*").remove();
