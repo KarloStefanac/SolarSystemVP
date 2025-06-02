@@ -284,36 +284,40 @@ function drawBarChart(svg, data, column) {
 
   const tooltip = d3.select("#tooltip");
 
-  g.selectAll("rect")
-    .data(filteredData)
-    .enter()
-    .append("rect")
+g.selectAll("rect")
+  .data(filteredData)
+  .enter()
+  .append("rect")
   .attr("x", d => xScale(d.name))
-  .attr("y", d => yScale(d.value))
+  .attr("y", yScale(0)) // Start from bottom
   .attr("width", xScale.bandwidth())
-  .attr("height", d => height - yScale(d.value))
-    .attr("fill", "orange")
-    .style("transform-origin", d => `${xScale(d.name) + xScale.bandwidth() / 2}px ${yScale(d.value)}px`)
-    .style("transition", "transform 0.2s ease")
-    .on("mouseover", function (event, d) {
-      d3.select(this).style("transform", "scale(1.05)");
-      tooltip.style("display", "block")
-        .html(`<strong>${d.name}</strong><br>${column}: ${d.value}`)
-        .style("left", `${event.pageX + 10}px`)
-        .style("top", `${event.pageY - 28}px`);
-    })
-    .on("mousemove", event => {
-        tooltip.style("left", `${event.pageX + 10}px`)
-        .style("top", `${event.pageY - 28}px`);
-    })
-    .on("mouseout", function () {
-      d3.select(this).style("transform", "scale(1)");
-      tooltip.style("display", "none");
-    })
-    .transition()
-    .duration(800)
-    .attr("y", d => d.value >= 0 ? yScale(d.value) : yScale(0))
-    .attr("height", d => Math.abs(yScale(d.value) - yScale(0)));
+  .attr("height", 0) // Initial height is 0 for animation
+  .attr("fill", "orange")
+  .style("transform-origin", d => `${xScale(d.name) + xScale.bandwidth() / 2}px ${yScale(d.value)}px`)
+  .style("transition", "transform 0.2s ease")
+  .on("mouseover", function (event, d) {
+    d3.select(this)
+      .style("transform", "scale(1.05)");
+
+    tooltip.style("display", "block")
+      .html(`<strong>${d.name}</strong><br>${column}: ${d.value}`)
+      .style("left", `${event.pageX + 10}px`)
+      .style("top", `${event.pageY - 28}px`);
+  })
+  .on("mousemove", event => {
+    tooltip.style("left", `${event.pageX + 10}px`)
+      .style("top", `${event.pageY - 28}px`);
+  })
+  .on("mouseout", function () {
+    d3.select(this)
+      .style("transform", "scale(1)");
+    tooltip.style("display", "none");
+  })
+  .transition()
+  .duration(800)
+  .attr("y", d => yScale(d.value))
+  .attr("height", d => height - yScale(d.value));
+
 
   g.append("g")
     .attr("transform", `translate(0,${yScale(0)})`)
@@ -352,7 +356,7 @@ function drawPieChart(svg, data, column) {
     names
   }));
 
-  const pie = d3.pie().value(d => d.count);
+  const pie = d3.pie().value(d => d.count).sort(null);
   const arc = d3.arc().innerRadius(0).outerRadius(radius - 10);
 
   const color = d3.scaleOrdinal()
@@ -361,22 +365,32 @@ function drawPieChart(svg, data, column) {
 
   const tooltip = d3.select("#tooltip");
 
-  const arcs = g.selectAll("path")
+  const arcs = g.selectAll("g")
     .data(pie(pieData))
     .enter()
     .append("g");
 
-  // Draw pie slices
+  // Draw pie slices with arc sweep animation
   arcs.append("path")
     .attr("fill", d => color(d.data.label))
-    .attr("d", arc)
-    .style("transition", "transform 0.2s ease")
-    .each(function (d) { this._current = d; })
-    .on("mouseover", function (event, d) {
+    .each(function(d) { this._current = { startAngle: 0, endAngle: 0 }; }) // Start angle at 0
+    .transition()
+    .duration(800)
+    .attrTween("d", function(d) {
+      const interpolate = d3.interpolate(this._current, d);
+      this._current = interpolate(1);
+      return function(t) {
+        return arc(interpolate(t));
+      };
+    });
+
+  // Hover effects
+  arcs.selectAll("path")
+    .on("mouseover", function(event, d) {
       d3.select(this)
         .transition()
         .duration(200)
-        .attr("transform", function (d) {
+        .attr("transform", function(d) {
           const [x, y] = arc.centroid(d);
           return `translate(${x * 0.1},${y * 0.1})`;
         });
@@ -414,6 +428,7 @@ function drawPieChart(svg, data, column) {
     .attr("class", "chart-title")
     .text("Ring System Distribution");
 }
+
 
   </script>
   <div id="tooltip" style="
