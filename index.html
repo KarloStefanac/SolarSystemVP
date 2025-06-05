@@ -75,6 +75,10 @@
 <body>
   <div class="container text-center">
     <h1>Planet Data Visualization</h1>
+  </div>
+  <div id="planet-image-container" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 10px;"></div>
+    <h3>TODO: Add colors for different planets</h3>
+    <h3>TODO: Add pictures of planets somewhere</h3>
     <div class="planet-buttons" id="planetButtons"></div>
   </div>
 
@@ -124,14 +128,17 @@
 
       const planetButtons = d3.select("#planetButtons");
       planetNames.forEach(name => {
+        addPlanetImage(name);
         planetButtons.append("button")
           .attr("class", "btn btn-info btn-sm")
           .text(name)
           .on("click", function () {
             if (selectedPlanets.has(name)) {
+              addPlanetImage(name);
               selectedPlanets.delete(name);
               d3.select(this).classed("btn-info", false).classed("btn-outline-info", true);
             } else {
+              addPlanetImage(name);
               selectedPlanets.add(name);
               d3.select(this).classed("btn-outline-info", false).classed("btn-info", true);
             }
@@ -446,6 +453,37 @@ function drawPieChart(svg, data, column) {
     .attr("text-anchor", "middle")
     .attr("class", "chart-title")
     .text("Ring System Distribution");
+}
+
+function addPlanetImage(planetName) {
+  const container = document.getElementById("planet-image-container");
+  const existingImg = [...container.children].find(child => child.dataset.planet === planetName);
+
+  if (existingImg) {
+    // If already shown, remove the image with a fade-out
+    existingImg.style.opacity = 0;
+    setTimeout(() => container.removeChild(existingImg), 300);
+  } else {
+    // Otherwise, add the image
+    const formattedName = planetName.toLowerCase().replace(/\s+/g, "_");
+    const imagePath = `images/${formattedName}.jpg`;
+
+    const img = document.createElement("img");
+    img.src = imagePath;
+    img.alt = `${planetName} image`;
+    img.dataset.planet = planetName;
+    img.style.maxHeight = "100px";
+    img.style.borderRadius = "8px";
+    img.style.transition = "opacity 0.3s ease";
+    img.style.opacity = 0;
+
+    container.appendChild(img);
+
+    // Trigger fade-in
+    setTimeout(() => {
+      img.style.opacity = 1;
+    }, 50);
+  }
 }
 
 
