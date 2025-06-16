@@ -60,6 +60,7 @@
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 8px;
       padding: 10px;
+      height: 370px;
     }
 
     svg {
@@ -77,7 +78,6 @@
     <h1>Planet Data Visualization</h1>
   </div>
   <div id="planet-image-container" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 10px;"></div>
-    <h3>TODO: Add colors for different planets</h3>
     <div class="planet-buttons" id="planetButtons"></div>
   </div>
 
@@ -90,34 +90,49 @@
     let selectedPlanets = new Set();
     let selectedColumns = new Set();
 
+    const planetColors = {
+      "Mercury": "#b0b0b0",
+      "Venus": "#e6e2af",
+      "Earth": "#2e5cb8",
+      "Mars": "#c1440e",
+      "Jupiter": "#d2b48c",
+      "Saturn": "#f5deb3",
+      "Uranus": "#7fffd4",
+      "Neptune": "#4166f5"
+    };
+
+
     const barChartColumns = [
       "NUMBER_OF_MOONS",
       "LENGTH_OF_DAY_HRS",
-      "MEAN_TEMPERATURE_C"
+      "MEAN_TEMPERATURE_C",
+      "SIDEREAL_ORBIT_PERIOD_DAYS"
     ];
 
     const allColumns = [
       "MASS_10_EXP_24_KG",
-      "VOLUME_10_EXP_10_KM_EXP_3",
       "DIAMETER_KM",
       "NUMBER_OF_MOONS",
       "HAS_RING_SYSTEM",
       "LENGTH_OF_DAY_HRS",
       "DISTANCE_FROM_SUN_10_EXP_6_KM",
       "GRAVITY_M_PER_S_EXP_2",
-      "MEAN_TEMPERATURE_C"
+      "MEAN_TEMPERATURE_C",
+      "MEAN_ORBITAL_VELOCITY_KM_PER_S",
+      "SIDEREAL_ORBIT_PERIOD_DAYS"
     ];
 
     const columnNameMap = {
         "MASS_10_EXP_24_KG": "Mass (10²⁴ kg)",
-        "VOLUME_10_EXP_10_KM_EXP_3": "Volume (10¹⁰ km³)",
         "DIAMETER_KM": "Diameter (km)",
         "NUMBER_OF_MOONS": "Number of Moons",
         "HAS_RING_SYSTEM": "Ring System",
         "LENGTH_OF_DAY_HRS": "Length of Day (hrs)",
         "DISTANCE_FROM_SUN_10_EXP_6_KM": "Distance from Sun (10⁶ km)",
         "GRAVITY_M_PER_S_EXP_2": "Gravity (m/s²)",
-        "MEAN_TEMPERATURE_C": "Mean Temperature (°C)"
+        "MEAN_TEMPERATURE_C": "Mean Temperature (°C)",
+        "MEAN_ORBITAL_VELOCITY_KM_PER_S" : "Travel speed (km/s)",
+        "SIDEREAL_ORBIT_PERIOD_DAYS": "Time to Complete Orbit (days)"
     };
 
     const lineChartColumns = allColumns.filter(col => !barChartColumns.includes(col) && col !== "HAS_RING_SYSTEM");
@@ -162,7 +177,6 @@
           });
       });
 
-      // Default selection
       planetNames.forEach(p => selectedPlanets.add(p));
       updateCharts(data);
     });
@@ -192,7 +206,7 @@ function drawLineChart(svg, data, column) {
   svg.selectAll("*").remove();
   const width = +svg.attr("width") - 60;
   const height = +svg.attr("height") - 60;
-  const g = svg.append("g").attr("transform", "translate(40,20)");
+  const g = svg.append("g").attr("transform", "translate(40,30)");
 
   const filteredData = data.map(d => ({
     name: d.NAME,
@@ -213,7 +227,6 @@ function drawLineChart(svg, data, column) {
     .y(d => yScale(d.value))
     .curve(d3.curveMonotoneX);
 
-  // Line path with transition
   g.append("path")
     .datum(filteredData)
     .attr("fill", "none")
@@ -231,7 +244,6 @@ function drawLineChart(svg, data, column) {
     .duration(1000)
     .attr("stroke-dashoffset", 0);
 
-  // Circles with hover interaction
   const tooltip = d3.select("#tooltip");
   g.selectAll("circle")
     .data(filteredData)
@@ -301,15 +313,15 @@ function drawBarChart(svg, data, column) {
     .data(filteredData)
     .enter()
     .append("rect")
+    .attr("fill", d => planetColors[d.name])
     .attr("x", d => xScale(d.name))
-    .attr("y", yScale(0)) // Start from baseline
+    .attr("y", yScale(0))
     .attr("width", xScale.bandwidth())
-    .attr("height", 0) // Start at height 0 for animation
-    .attr("fill", "orange")
+    .attr("height", 0)
     .style("transform-origin", d => `${xScale(d.name) + xScale.bandwidth() / 2}px ${yScale(d.value)}px`)
     .style("transition", "transform 0.2s ease")
     .on("mouseover", function (event, d) {
-      d3.select(this).style("transform", "scale(1.05)");
+      d3.select(this).style("transform", "scale(1.1, 1.01)");
 
       tooltip.style("display", "block")
         .html(`<strong>${d.name}</strong><br>${column}: ${d.value}`)
@@ -325,13 +337,11 @@ function drawBarChart(svg, data, column) {
       tooltip.style("display", "none");
     });
 
-  // Animate the bars correctly depending on value sign
   bars.transition()
     .duration(800)
     .attr("y", d => d.value >= 0 ? yScale(d.value) : yScale(0))
     .attr("height", d => Math.abs(yScale(d.value) - yScale(0)));
 
-  // X axis
   g.append("g")
     .attr("transform", `translate(0,${yScale(0)})`)
     .call(d3.axisBottom(xScale))
@@ -340,13 +350,11 @@ function drawBarChart(svg, data, column) {
     .style("text-anchor", "end")
     .style("fill", "white");
 
-  // Y axis
   g.append("g")
     .call(d3.axisLeft(yScale))
     .selectAll("text")
     .style("fill", "white");
 
-  // Title
   svg.append("text")
     .attr("x", width / 2)
     .attr("y", 15)
@@ -363,9 +371,8 @@ function drawPieChart(svg, data, column) {
   const radius = Math.min(width, height) / 2;
 
   const g = svg.append("g")
-    .attr("transform", `translate(${width / 2}, ${height / 2})`);
+    .attr("transform", `translate(${width / 2}, ${(height / 2)+10} )`);
 
-  // Group data and collect planet names
   const ringGroups = d3.rollup(
     data,
     v => ({
@@ -395,7 +402,6 @@ function drawPieChart(svg, data, column) {
     .enter()
     .append("g");
 
-  // Draw pie slices with arc sweep animation
   arcs.append("path")
     .attr("fill", d => color(d.data.label))
     .each(function(d) { this._current = { startAngle: 0, endAngle: 0 }; }) // Start angle at 0
@@ -409,7 +415,6 @@ function drawPieChart(svg, data, column) {
       };
     });
 
-  // Hover effects
   arcs.selectAll("path")
     .on("mouseover", function(event, d) {
       d3.select(this)
@@ -437,7 +442,6 @@ function drawPieChart(svg, data, column) {
       tooltip.style("display", "none");
     });
 
-  // Add labels inside slices
   arcs.append("text")
     .attr("transform", d => `translate(${arc.centroid(d)})`)
     .attr("text-anchor", "middle")
@@ -445,7 +449,6 @@ function drawPieChart(svg, data, column) {
     .style("fill", "#fff")
     .text(d => `${d.data.label} (${d.data.count})`);
 
-  // Chart title
   svg.append("text")
     .attr("x", width / 2)
     .attr("y", 15)
@@ -459,11 +462,9 @@ function addPlanetImage(planetName) {
   const existingImg = [...container.children].find(child => child.dataset.planet === planetName);
 
   if (existingImg) {
-    // If already shown, remove the image with a fade-out
     existingImg.style.opacity = 0;
     setTimeout(() => container.removeChild(existingImg), 300);
   } else {
-    // Otherwise, add the image
     const formattedName = planetName.toLowerCase().replace(/\s+/g, "_");
     const imagePath = `images/${formattedName}.jpg`;
 
@@ -478,7 +479,6 @@ function addPlanetImage(planetName) {
 
     container.appendChild(img);
 
-    // Trigger fade-in
     setTimeout(() => {
       img.style.opacity = 1;
     }, 50);
